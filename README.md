@@ -1,57 +1,73 @@
-# lab-backend-template
+# lab-ble-mcp
 
-[lab-executor-mcp](https://github.com/TECTOS-JP/lab-executor-mcp) 用の機器バックエンドを作るための、実行可能なテンプレートです。`lab-<protocol>-mcp` を始める際の出発点として使います。空の TODO 集ではなく、clone直後からテストできる Echo example を同梱しています。
+[lab-executor-mcp](https://github.com/TECTOS-JP/lab-executor-mcp) 用の BLE 環境センサ backend です。温湿度・気圧・CO2 などを実験記録の一部として取得します。
 
-## Echo example
+## 対応機種
 
-- resource: `ECHO::<name>`（大文字小文字を区別し、不正形式は拒否）
-- query: `GET <key>`
-- write: `SET <key> <value>`
-- `EchoBackend`: resourceごとに独立したメモリ状態を持つ、動作する最小実装
-- `MockEchoBackend`: BEF適合テスト用の厳密な `*IDN?` / `CONF` probe を追加
+| profile | 機器 | 取得できる測定量 | 経路 |
+| --- | --- | --- | --- |
+| `omron_2jcie` | OMRON 2JCIE-BU01 | 温度・湿度・照度・気圧・騒音・eTVOC・eCO2 | advertisement / GATT |
+| `switchbot_meter` | SwitchBot Meter | 温度・湿度・電池残量 | advertisement のみ |
+
+どちらの profile も実機で検証済みです（2026-07-20）。同梱の mock backend は、そのとき実機から採取したペイロードをそのまま再生します。テストは手書きの例ではなく、**装置が実際に送出したバイト列**を復号して検証しています。
+
+## 使い方
 
 ```powershell
 python -m pip install -e ".[dev]"
 pytest -q
-lab-backend serve --resource ECHO::demo --dry-run
+lab-ble profiles
+lab-ble serve --resource "BLE::omron_2jcie/D0:ED:3E:53:EE:22" --dry-run
 ```
 
-実通信プロトコルへ移植するときは、入力検証を残したまま `backend.py` の状態アクセス部分をtransport呼び出しへ置き換えます。詳細は [USING_THIS_TEMPLATE.md](docs/USING_THIS_TEMPLATE.md) を参照してください。
-
-## 3つの利用モード
-
-### A. MCP server
+- resource: `BLE::<profile>/<ADDRESS>`
+  - profile は小文字の slug、address は大文字コロン区切り。正規形は1つだけで、小文字アドレスは黙って変換せず拒否します。
+  - profile を resource 名に含めるのは、BLE のペイロードが自己記述的でないためです。復号器はバイトを解釈する前に確定している必要があり、設定ミスで別ベンダのフィールド地図を当ててしまう事故を防ぎます。
+- query: `READ <測定量>` / `INFO <項目>`
+- write: **ありません**（後述）
 
 ```powershell
-lab-backend serve --resource ECHO::device1
+lab-ble serve --resource "BLE::switchbot_meter/D6:DF:02:E9:08:48"
 ```
 
-CLIは凍結された公開API `compose_server` と `run_mcp_with_control` だけでserverを構成します。
-
-### B. Python library
+### Python library
 
 ```python
-from lab_backend_template import EchoBackend
+from lab_ble_mcp import BleBackend
 
-backend = EchoBackend(resources=["ECHO::device1"])
+backend = BleBackend(resources=["BLE::omron_2jcie/D0:ED:3E:53:EE:22"])
+value = await backend.query("BLE::omron_2jcie/D0:ED:3E:53:EE:22", "READ temperature")
 ```
 
-### C. lab-executor backend discovery
+### lab-executor backend discovery
 
-インストール時に entry point `lab_executor.backends: echo` が登録されます。`lab-executor serve --backends echo` または `_system.yaml` の `backends:` から選択できます。
+インストール時に entry point `lab_executor.backends: ble` が登録されます。`lab-executor serve --backends ble` または `_system.yaml` の `backends:` から選択できます。
 
-## 安全設計（置換後も必須）
+## 安全設計
 
-- 書き込み可能な対象は機器定義のcommandとして明示し、raw write APIを追加しないでください。
-- 未知resource、未知opcode、不正な引数、未初期化keyは推測せず fail-closed で拒否します。
-- readのretryとwriteのretryを分離してください。writeの自動retryは二重書き込みや二重動作を起こし得るため、既定で行わないでください。
-- 各機器定義には安全側へ戻す `safe_shutdown` を必ず定義してください。
-- 実機未検証の定義は `support_level: experimental` とします。`verified` は対象実機で確認済みの場合だけ使用してください。
-- このEcho実装は構造のexampleであり、物理装置の安全性を保証しません。実装時は装置固有の範囲、interlock、timeout、shutdownを追加してください。
+**この backend は書き込みを一切行いません。** コマンド文法に write の opcode が存在しないため、実行時の許可リストに頼らず、文法上writeを表現できません。
+
+これは理屈ではなく実機の観察に基づく判断です。OMRON 2JCIE-BU01 は閾値設定用の書き込み可能な characteristic に加えて、Nordic buttonless DFU characteristic (`8ec90003-f315-4f60-9fb8-838830daea50`) を公開しています。ここへ誤って書き込むと装置が使用不能になり得ます。測定用 backend がそこへ到達する理由はありません。
+
+その他の原則:
+
+- 未知の resource、未知の opcode、profile が公開していない測定量、長さの足りないペイロードは、推測せず fail-closed で拒否します。
+- 読み取りは profile が両経路を持つ場合 advertisement を優先します。ブロードキャストは接続枠を消費しないため、ポーリングがスマートフォンアプリや他ホストを締め出しません。書き込み可能な characteristic へ接続すること自体を避けられます。
+- `support_level: verified` は、実機から採取したペイロードがその profile で復号できる場合にのみ宣言できます（テストで強制）。
+
+## 対応機種を増やす
+
+多くの機器は profile の YAML を `src/lab_ble_mcp/profiles/` に1枚追加するだけで対応できます。Python の変更が必要になるのは、フィールドが固定幅リトルエンディアンで表現できない場合だけです（SwitchBot の温度は2バイトにまたがるマスク済みニブルなので、`codec.CUSTOM_DECODERS` に専用の復号器を持ちます）。
+
+## 制約
+
+- **連続ストリーミングは対象外です。** 現行の BEF 契約は `query() -> str` に凍結されており、波形や生体信号のような連続データが backend から出ていく経路がありません。BITalino 等のストリーミング機器はこの制約の対象です。
+- **advertisement の送出間隔は機種差が大きく、待ち時間を要します。** `timeout_ms` は黙って延長せず、その操作の期限としてそのまま使います。実測では 2JCIE-BU01 は数秒間隔で安定して取得できましたが、SwitchBot Meter は不規則で、25000 ms でも取り逃すことがありました。定期取得では `cache_ttl_ms`（既定 10000 ms）が1回の受信を複数の測定量へ行き渡らせるため、測定量ごとに待ち直すことはありません。
+- `list_resources()` は設定された resource だけを返します。BLE のスキャンは profile を持たない近隣のビーコンまで列挙してしまうためです。
 
 ## 開発と公開
 
-CIはPython 3.11、Ruff、BEF適合、latest release統合、lab-executor main互換smoke、buildを検証します。タグはPyPI、手動workflowは既定でTestPyPIへTrusted Publishingで公開します。テンプレート自体は公開パッケージではないため、複製後に名前とmetadataを変更するまでtagを作らないでください。
+CI は Python 3.11、Ruff、BEF 適合、latest release 統合、lab-executor main 互換 smoke、build を検証します。タグは PyPI、手動 workflow は既定で TestPyPI へ Trusted Publishing で公開します。
 
 ## ライセンス
 

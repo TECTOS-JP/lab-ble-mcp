@@ -1,0 +1,49 @@
+# Verified against OMRON 2JCIE-BU01 (S/N 05X8MY0291, HW 01.00, FW 00.69)
+# on 2026-07-20. The advertisement and GATT layouts were cross-checked against
+# each other: both paths reported the same temperature, humidity and
+# illuminance within one sampling interval.
+#
+# The device also exposes writable threshold characteristics and a Nordic
+# buttonless DFU characteristic (8ec90003-f315-4f60-9fb8-838830daea50). None of
+# them appear here, and the command language has no write opcode, so this
+# backend cannot reach them.
+profile: omron_2jcie
+
+metadata:
+  manufacturer: "OMRON"
+  model: "2JCIE-BU01"
+  category: "environment_sensor"
+  support_level: "verified"
+  definition_version: "0.1.0"
+  manual_ref: "OMRON 2JCIE-BU01 Communication Interface Manual (A279)"
+  description: >-
+    USB-powered environment sensor reporting temperature, humidity,
+    illuminance, barometric pressure, sound noise, eTVOC and eCO2.
+
+access:
+  # Broadcast payload, manufacturer-specific data, company 0x02D5 (OMRON).
+  # Byte 0 is a data-type tag and byte 1 a sequence number, so measurands
+  # start at offset 2.
+  advertisement:
+    manufacturer_id: 0x02D5
+    fields:
+      temperature:   {offset: 2,  type: i16le, scale: 0.01,  unit: "degC"}
+      humidity:      {offset: 4,  type: i16le, scale: 0.01,  unit: "percent_rh"}
+      illuminance:   {offset: 6,  type: i16le, scale: 1,     unit: "lx"}
+      pressure:      {offset: 8,  type: i32le, scale: 0.001, unit: "hPa"}
+      sound_noise:   {offset: 12, type: u16le, scale: 0.01,  unit: "dB"}
+      etvoc:         {offset: 14, type: u16le, scale: 1,     unit: "ppb"}
+      eco2:          {offset: 16, type: u16le, scale: 1,     unit: "ppm"}
+
+  # Latest sensing data characteristic. Same field order as the advertisement
+  # but without the leading data-type byte, so every offset shifts down by one.
+  gatt:
+    characteristic: "ab705012-0a3a-11e8-ba89-0ed5f89f718b"
+    fields:
+      temperature:   {offset: 1,  type: i16le, scale: 0.01,  unit: "degC"}
+      humidity:      {offset: 3,  type: i16le, scale: 0.01,  unit: "percent_rh"}
+      illuminance:   {offset: 5,  type: i16le, scale: 1,     unit: "lx"}
+      pressure:      {offset: 7,  type: i32le, scale: 0.001, unit: "hPa"}
+      sound_noise:   {offset: 11, type: u16le, scale: 0.01,  unit: "dB"}
+      etvoc:         {offset: 13, type: u16le, scale: 1,     unit: "ppb"}
+      eco2:          {offset: 15, type: u16le, scale: 1,     unit: "ppm"}

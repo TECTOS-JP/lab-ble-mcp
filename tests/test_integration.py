@@ -12,12 +12,11 @@ from lab_executor.backends import (
     ResourceRoutingError,
 )
 
-from lab_backend_template.cli import main
-from lab_backend_template.mock_backend import MockEchoBackend
+from lab_ble_mcp.cli import main
+from lab_ble_mcp.mock_backend import DEFAULT_MOCK_RESOURCE, MockBleBackend
 
 
 ROOT = Path(__file__).parents[1]
-RESOURCE = "ECHO::demo"
 
 
 class OtherBackend:
@@ -37,34 +36,41 @@ class OtherBackend:
 
 
 @pytest.mark.asyncio
-async def test_composite_routes_echo_and_rejects_unmatched_resource():
-    echo = MockEchoBackend(resources=[RESOURCE], initial_values={"value": "4"})
-    other = OtherBackend()
+async def test_composite_routes_ble_and_rejects_unmatched_resource():
+    ble = MockBleBackend()
     composite = CompositeBackend(
         [
-            BackendRegistration(backend=echo, prefixes=("ECHO::",)),
-            BackendRegistration(backend=other, prefixes=("OTHER::",)),
+            BackendRegistration(backend=ble, prefixes=("BLE::",)),
+            BackendRegistration(backend=OtherBackend(), prefixes=("OTHER::",)),
         ]
     )
-    assert await composite.query(RESOURCE, "GET value") == "4"
+    assert await composite.query(DEFAULT_MOCK_RESOURCE, "READ temperature") == "27.47"
     assert await composite.query("OTHER::1", "PING") == "OTHER::1:PING"
     with pytest.raises(ResourceRoutingError):
         await composite.query("UNKNOWN::1", "PING")
 
 
 def test_cli_dry_run_composes_server_and_lists_tools(capsys):
-    assert main(["serve", "--resource", RESOURCE, "--dry-run"]) == 0
+    assert main(["serve", "--resource", DEFAULT_MOCK_RESOURCE, "--dry-run"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["backend_id"] == "echo"
-    assert payload["resources"] == [RESOURCE]
-    assert len(payload["tools"]) > 0
+    assert payload["backend_id"] == "ble"
+    assert payload["resources"] == [DEFAULT_MOCK_RESOURCE]
     assert {"execute_named_command", "start_recipe_job"} <= set(payload["tools"])
 
 
+def test_cli_lists_bundled_profiles(capsys):
+    assert main(["profiles"]) == 0
+    names = capsys.readouterr().out.split()
+    assert {"omron_2jcie", "switchbot_meter"} <= set(names)
+
+
+def test_cli_rejects_a_malformed_resource(capsys):
+    with pytest.raises(SystemExit):
+        main(["serve", "--resource", "BLE::bad", "--dry-run"])
+
+
 def test_cli_imports_only_public_lab_executor_contract_modules():
-    tree = ast.parse(
-        (ROOT / "src" / "lab_backend_template" / "cli.py").read_text("utf-8")
-    )
+    tree = ast.parse((ROOT / "src" / "lab_ble_mcp" / "cli.py").read_text("utf-8"))
     modules = {
         node.module
         for node in ast.walk(tree)
@@ -73,3 +79,17 @@ def test_cli_imports_only_public_lab_executor_contract_modules():
         and node.module.startswith("lab_executor")
     }
     assert modules == {"lab_executor.control_plane", "lab_executor.server"}
+
+
+def test_backend_module_does_not_import_bleak_at_module_scope():
+    """Importing the package, or running a mock, must not touch a Bluetooth stack."""
+    tree = ast.parse((ROOT / "src" / "lab_ble_mcp" / "backend.py").read_text("utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names = (
+                [node.module or ""]
+                if isinstance(node, ast.ImportFrom)
+                else [alias.name for alias in node.names]
+            )
+            if any(name.split(".")[0] == "bleak" for name in names):
+                assert node.col_offset > 0, "bleak must be imported lazily"

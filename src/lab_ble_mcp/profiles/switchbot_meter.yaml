@@ -1,0 +1,28 @@
+# Verified against a SwitchBot Meter on 2026-07-20. The reading agreed with a
+# co-located OMRON 2JCIE-BU01 to within the spacing of the two units.
+#
+# The Meter broadcasts its full reading and does not serve these measurands
+# over GATT, so this profile declares no gatt block. Reads never connect.
+profile: switchbot_meter
+
+metadata:
+  manufacturer: "SwitchBot"
+  model: "Meter (WoSensorTH)"
+  category: "environment_sensor"
+  support_level: "verified"
+  definition_version: "0.1.0"
+  manual_ref: "SwitchBot BLE open API, Meter service data 0x54"
+  description: >-
+    Battery-powered thermometer and hygrometer that reports temperature,
+    relative humidity and battery level in its advertisement.
+
+access:
+  # Service data under UUID 0000fd3d-*. Byte 0 is the device type tag 0x54
+  # ('T'). Temperature spans masked nibbles of bytes 3 and 4, which the
+  # switchbot_temp_c decoder handles.
+  advertisement:
+    service_uuid: "0000fd3d-0000-1000-8000-00805f9b34fb"
+    fields:
+      temperature: {decoder: "switchbot_temp_c", unit: "degC"}
+      humidity:    {offset: 5, type: u8, mask: 0x7F, unit: "percent_rh"}
+      battery:     {offset: 2, type: u8, mask: 0x7F, unit: "percent"}

@@ -10,7 +10,8 @@ from typing import Sequence
 from lab_executor.control_plane import run_mcp_with_control
 from lab_executor.server import compose_server
 
-from lab_backend_template.backend import EchoBackend
+from lab_ble_mcp.backend import BleBackend
+from lab_ble_mcp.profile import available_profiles
 
 
 def _control_port(value: str) -> int:
@@ -25,16 +26,16 @@ def _control_port(value: str) -> int:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="lab-backend",
-        description="Run the Echo example through the public lab-executor API.",
+        prog="lab-ble",
+        description="Serve BLE environment sensors through the public lab-executor API.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    serve = subparsers.add_parser("serve", help="serve the Echo backend over MCP stdio")
+    serve = subparsers.add_parser("serve", help="serve the BLE backend over MCP stdio")
     serve.add_argument(
         "--resource",
         action="append",
         required=True,
-        help="configured ECHO::<name> resource (repeat for multiple resources)",
+        help="configured BLE::<profile>/<ADDRESS> resource (repeat for multiple)",
     )
     serve.add_argument("--dry-run", action="store_true", help="compose and list tools")
     serve.add_argument(
@@ -43,10 +44,11 @@ def _parser() -> argparse.ArgumentParser:
         default=0,
         help="localhost control-plane port (default: 0, OS-assigned)",
     )
+    subparsers.add_parser("profiles", help="list bundled device profiles")
     return parser
 
 
-async def _dry_run(mcp: object, backend: EchoBackend) -> None:
+async def _dry_run(mcp: object, backend: BleBackend) -> None:
     list_tools = getattr(mcp, "list_tools")
     tools = await list_tools()
     payload = {
@@ -61,11 +63,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
     parser = _parser()
     args = parser.parse_args(argv)
+    if args.command == "profiles":
+        for name in sorted(available_profiles()):
+            print(name)
+        return 0
     try:
-        backend = EchoBackend(resources=args.resource)
+        backend = BleBackend(resources=args.resource)
     except (TypeError, ValueError) as exc:
         parser.error(str(exc))
-    mcp, job_mgr = compose_server(backend, name="lab-backend-template")
+    mcp, job_mgr = compose_server(backend, name="lab-ble-mcp")
     try:
         if args.dry_run:
             asyncio.run(_dry_run(mcp, backend))

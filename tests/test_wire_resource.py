@@ -2,64 +2,95 @@ from __future__ import annotations
 
 import pytest
 
-from lab_backend_template.resource import EchoResourceError, parse_resource_name
-from lab_backend_template.wire import EchoWireError, parse_wire_command
+from lab_ble_mcp.resource import BleResourceError, parse_resource_name
+from lab_ble_mcp.wire import BleWireError, parse_wire_command
 
 
-@pytest.mark.parametrize("resource", ["ECHO::demo", "ECHO::A-1", "ECHO::rack.unit_2"])
-def test_resource_parser_accepts_exact_valid_names(resource):
-    parsed = parse_resource_name(resource)
-    assert parsed.name == resource.removeprefix("ECHO::")
+VALID = "BLE::omron_2jcie/D0:ED:3E:53:EE:22"
+
+
+def test_valid_resource_splits_into_profile_and_address():
+    parsed = parse_resource_name(VALID)
+    assert parsed.profile == "omron_2jcie"
+    assert parsed.address == "D0:ED:3E:53:EE:22"
 
 
 @pytest.mark.parametrize(
     "resource",
     [
         "",
-        "ECHO::",
-        "echo::demo",
-        " ECHO::demo",
-        "ECHO::demo ",
-        "ECHO::two::parts",
-        "ECHO::bad name",
-        "ECHO::/path",
-        "OTHER::demo",
-        "ECHO::" + "x" * 65,
+        "BLE::",
+        "BLE::omron_2jcie",
+        "BLE::omron_2jcie/",
+        "BLE::/D0:ED:3E:53:EE:22",
+        "BLE::omron_2jcie/D0:ED:3E:53:EE",
+        "BLE::omron_2jcie/D0-ED-3E-53-EE-22",
+        "BLE::omron_2jcie/d0:ed:3e:53:ee:22",
+        "BLE::OMRON_2JCIE/D0:ED:3E:53:EE:22",
+        "ble::omron_2jcie/D0:ED:3E:53:EE:22",
+        "GPIB0::1::INSTR",
+        " BLE::omron_2jcie/D0:ED:3E:53:EE:22",
+        "BLE::omron_2jcie/D0:ED:3E:53:EE:22 ",
+        "BLE::omron_2jcie/D0:ED:3E:53:EE:22\n",
+        "BLE::omron 2jcie/D0:ED:3E:53:EE:22",
     ],
 )
-def test_resource_parser_rejects_every_unknown_shape(resource):
-    with pytest.raises(EchoResourceError):
+def test_malformed_resources_are_rejected(resource):
+    with pytest.raises(BleResourceError):
         parse_resource_name(resource)
 
 
-def test_wire_parser_accepts_get_and_set():
-    get = parse_wire_command("GET temperature")
-    assert get.is_read and not get.is_write and get.value is None
-    set_command = parse_wire_command("SET temperature 25.5")
-    assert set_command.is_write and set_command.key == "temperature"
-    assert set_command.value == "25.5"
+def test_non_string_resource_is_rejected():
+    with pytest.raises(BleResourceError):
+        parse_resource_name(None)  # type: ignore[arg-type]
+
+
+def test_lowercase_address_is_not_silently_normalized():
+    """One address must have exactly one spelling in bundles and logs."""
+    with pytest.raises(BleResourceError):
+        parse_resource_name("BLE::omron_2jcie/d0:ed:3e:53:ee:22")
+
+
+@pytest.mark.parametrize("command", ["READ temperature", "INFO model"])
+def test_valid_commands_parse_as_reads(command):
+    parsed = parse_wire_command(command)
+    assert parsed.is_read
 
 
 @pytest.mark.parametrize(
     "command",
     [
         "",
-        "READ key",
-        "get key",
-        "GET",
-        "GET key extra",
-        "SET key",
-        "SET key value extra",
-        " SET key value",
-        "SET  key value",
-        "SET key ",
-        "GET bad/key",
-        "GET key\nSET key value",
-        "SET key value with spaces",
-        "SET key value\u3000with-space",
-        "SET key café",
+        "READ",
+        "INFO",
+        "READ temperature extra",
+        "READ Temperature",
+        "READ 1temperature",
+        "READ temp/erature",
+        "read temperature",
+        "READ  temperature",
+        " READ temperature",
+        "READ temperature ",
+        "READ temperature\n",
+        "*IDN?",
+        "CONF",
     ],
 )
-def test_wire_parser_fails_closed_for_unknown_or_malformed_commands(command):
-    with pytest.raises(EchoWireError):
+def test_malformed_commands_are_rejected(command):
+    with pytest.raises(BleWireError):
         parse_wire_command(command)
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["WRITE temperature 20", "SET temperature 20", "PAIR", "DFU start"],
+)
+def test_the_grammar_cannot_express_a_write(command):
+    """No write opcode exists, so threshold and DFU characteristics are unreachable."""
+    with pytest.raises(BleWireError, match="unknown BLE opcode"):
+        parse_wire_command(command)
+
+
+def test_non_string_command_is_rejected():
+    with pytest.raises(BleWireError):
+        parse_wire_command(None)  # type: ignore[arg-type]

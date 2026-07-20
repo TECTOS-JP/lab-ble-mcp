@@ -3,16 +3,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "lab-backend-template"
+name = "lab-ble-mcp"
 version = "0.1.0"
-description = "Working example backend template for lab-executor-mcp"
+description = "BLE environment-sensor backend for lab-executor-mcp"
 readme = "README.md"
 license = { text = "MIT" }
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 keywords = [
     "laboratory-automation", "instrument-control", "lab-executor-mcp",
-    "backend-template", "experiment-automation",
+    "bluetooth-low-energy", "environment-sensor", "experiment-automation",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -27,6 +27,8 @@ classifiers = [
 ]
 dependencies = [
     "lab-executor-mcp>=2.35.0,<3.0.0",
+    "bleak>=0.22,<2.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -36,26 +38,25 @@ dev = [
     "ruff>=0.8",
     "build>=1.0",
     "twine>=5.0",
-    "PyYAML>=6.0",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.urls]
-Homepage = "https://github.com/TECTOS-JP/lab-backend-template"
-Repository = "https://github.com/TECTOS-JP/lab-backend-template"
-Changelog = "https://github.com/TECTOS-JP/lab-backend-template/blob/main/CHANGELOG.md"
-Issues = "https://github.com/TECTOS-JP/lab-backend-template/issues"
+Homepage = "https://github.com/TECTOS-JP/lab-ble-mcp"
+Repository = "https://github.com/TECTOS-JP/lab-ble-mcp"
+Changelog = "https://github.com/TECTOS-JP/lab-ble-mcp/blob/main/CHANGELOG.md"
+Issues = "https://github.com/TECTOS-JP/lab-ble-mcp/issues"
 
 [project.entry-points."lab_executor.backends"]
-echo = "lab_backend_template.discovery:make_backend"
+ble = "lab_ble_mcp.discovery:make_backend"
 
 [project.scripts]
-lab-backend = "lab_backend_template.cli:main"
+lab-ble = "lab_ble_mcp.cli:main"
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/.gitignore",
-    "/src/lab_backend_template",
+    "/src/lab_ble_mcp",
     "/tests",
     "/docs",
     "/README.md",
@@ -66,7 +67,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/lab_backend_template"]
+packages = ["src/lab_ble_mcp"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
