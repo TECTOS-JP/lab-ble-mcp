@@ -55,9 +55,22 @@ value = await backend.query("BLE::omron_2jcie/D0:ED:3E:53:EE:22", "READ temperat
 - 読み取りは profile が両経路を持つ場合 advertisement を優先します。ブロードキャストは接続枠を消費しないため、ポーリングがスマートフォンアプリや他ホストを締め出しません。書き込み可能な characteristic へ接続すること自体を避けられます。
 - `support_level: verified` は、実機から採取したペイロードがその profile で復号できる場合にのみ宣言できます（テストで強制）。
 
+## 機器ごとの2つの定義ファイル
+
+機器1台につき、役割の異なる YAML を2枚持ちます（**ファイル名は同じ**）。
+
+| ファイル | 答える問い | 位置づけ |
+| --- | --- | --- |
+| `profiles/<name>.yaml` | バイト列をどう物理量へ復号するか | BLE 固有。SCPI は文字列を返すので VISA には無い層 |
+| `builtin_instruments/<name>.yaml` | 名前付きコマンドは何があるか、単位・説明 | lab-executor エコシステム共通。`list_commands` / `execute_named_command` の情報源 |
+
+機器定義の `scpi` にはこの backend のワイヤ言語（`READ temperature` 等）を書きます。SCPI ではありませんが、エコシステムの `InstrumentDefinition` 形式に揃えることで VISA・Modbus 機器と同じ手順で扱えます。
+
+2つの文書は手書きなので乖離し得ます。そのためテストで、測定量とコマンドが過不足なく一致すること、全 `scpi` がワイヤ文法で解析できること、`state_query` の単位が一致すること、`support_level` が一致することを強制しています。
+
 ## 対応機種を増やす
 
-多くの機器は profile の YAML を `src/lab_ble_mcp/profiles/` に1枚追加するだけで対応できます。Python の変更が必要になるのは、フィールドが固定幅リトルエンディアンで表現できない場合だけです（SwitchBot の温度は2バイトにまたがるマスク済みニブルなので、`codec.CUSTOM_DECODERS` に専用の復号器を持ちます）。
+上記2枚の YAML を追加します。Python の変更が必要になるのは、フィールドが固定幅リトルエンディアンで表現できない場合だけです（SwitchBot の温度は2バイトにまたがるマスク済みニブルなので、`codec.CUSTOM_DECODERS` に専用の復号器を持ちます）。詳細は [ADDING_A_PROFILE.md](docs/ADDING_A_PROFILE.md) を参照してください。
 
 ## 制約
 

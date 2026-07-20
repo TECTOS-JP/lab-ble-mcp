@@ -23,7 +23,10 @@ from lab_ble_mcp.codec import Field, build_field
 
 _PROFILE_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_]{0,31}\Z")
 _UUID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\Z")
-_SUPPORT_LEVELS = frozenset({"experimental", "mock_verified", "verified"})
+# The lab-executor ecosystem vocabulary (see MetadataConfig.support_level).
+# Profiles and the instrument definitions in builtin_instruments/ must agree,
+# so this set is deliberately not extended with BLE-specific levels.
+_SUPPORT_LEVELS = frozenset({"verified", "tested", "experimental", "draft"})
 
 
 class BleProfileError(ValueError):

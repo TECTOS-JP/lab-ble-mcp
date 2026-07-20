@@ -1,0 +1,91 @@
+# SwitchBot Meter (WoSensorTH) thermometer and hygrometer.
+#
+# Command strings are this backend's read-only BLE wire language, not SCPI.
+# Byte-level decoding lives in profiles/switchbot_meter.yaml.
+metadata:
+  manufacturer: "SwitchBot"
+  model: "Meter (WoSensorTH)"
+  category: "environment_sensor"
+  description: >-
+    Battery-powered BLE thermometer and hygrometer that reports temperature,
+    relative humidity and battery level in its advertisement. The device does
+    not serve these measurands over GATT and reads never connect to it.
+  manual_ref: "SwitchBot BLE open API, Meter service data 0x54"
+  support_level: "verified"
+  tested_interfaces: ["BLE"]
+  tested_firmware: ""
+  definition_version: "0.1.0"
+  validation_evidence:
+    tested_by: "TECTOS"
+    tested_at: "2026-07-20"
+    interface: "BLE"
+    firmware: ""
+    tested_items:
+      - identify
+      - read_temperature
+      - read_humidity
+      - read_battery
+      - state_query
+    notes: >-
+      Temperature, humidity and battery read from hardware; the reading agreed
+      with a co-located OMRON 2JCIE-BU01. Advertisement intervals are
+      irregular and a single read occasionally exceeded 25000 ms, which is why
+      default_timeout_ms is larger here than for the OMRON unit. Writes were
+      confirmed rejected.
+
+connection:
+  # Measured broadcasts from this unit were irregular; a first read on a cold
+  # cache has been observed to need more than 25000 ms.
+  default_timeout_ms: 30000
+  read_termination: ""
+  write_termination: ""
+
+commands:
+  identify:
+    scpi: "INFO model"
+    type: "query"
+    description: "Return the model name declared by the bound profile."
+    returns:
+      type: "string"
+
+  read_temperature:
+    scpi: "READ temperature"
+    type: "query"
+    description: "Read air temperature."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "degC"
+
+  read_humidity:
+    scpi: "READ humidity"
+    type: "query"
+    description: "Read relative humidity."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "percent_rh"
+
+  read_battery:
+    scpi: "READ battery"
+    type: "query"
+    description: "Read remaining battery level."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "percent"
+
+state_query:
+  temperature:
+    command: "read_temperature"
+    unit: "degC"
+  humidity:
+    command: "read_humidity"
+    unit: "percent_rh"
+  battery:
+    command: "read_battery"
+    unit: "percent"
+
+# Intentionally empty: a measurement-only device has nothing to make safe, and
+# the backend's command grammar has no write opcode.
+safe_shutdown: []

@@ -81,9 +81,10 @@ def test_bundled_profiles_load_and_declare_verified_support():
         assert profile.name == name
         assert profile.advertisement is not None or profile.gatt is not None
         assert profile.metadata["support_level"] in {
-            "experimental",
-            "mock_verified",
             "verified",
+            "tested",
+            "experimental",
+            "draft",
         }
 
 

@@ -1,0 +1,148 @@
+# OMRON 2JCIE-BU01 environment sensor.
+#
+# Command strings are this backend's read-only BLE wire language, not SCPI.
+# The `scpi` key keeps the ecosystem's InstrumentDefinition shape so that
+# list_commands and execute_named_command work the same way they do for VISA
+# and Modbus devices.
+#
+# Byte-level decoding lives in profiles/omron_2jcie.yaml. This file declares
+# which named commands exist; that file declares how the payload is decoded.
+metadata:
+  manufacturer: "OMRON"
+  model: "2JCIE-BU01"
+  category: "environment_sensor"
+  description: >-
+    USB-powered BLE environment sensor reporting temperature, humidity,
+    illuminance, barometric pressure, sound noise, eTVOC and eCO2.
+  manual_ref: "OMRON 2JCIE-BU01 Communication Interface Manual (A279)"
+  support_level: "verified"
+  tested_interfaces: ["BLE"]
+  tested_firmware: "00.69"
+  definition_version: "0.1.0"
+  validation_evidence:
+    tested_by: "TECTOS"
+    tested_at: "2026-07-20"
+    interface: "BLE"
+    firmware: "00.69"
+    tested_items:
+      - identify
+      - read_temperature
+      - read_humidity
+      - read_illuminance
+      - read_pressure
+      - read_sound_noise
+      - read_etvoc
+      - read_eco2
+      - state_query
+    notes: >-
+      All seven measurands read from hardware (S/N 05X8MY0291). The
+      advertisement and GATT paths were cross-checked and agreed. Writes were
+      confirmed rejected. safe_shutdown is empty because the device has no
+      actuation; see the note on that key below.
+
+connection:
+  # Advertisement intervals are measured in seconds, so the ecosystem default
+  # of 5000 ms is too short for a first read on a cold cache.
+  default_timeout_ms: 20000
+  read_termination: ""
+  write_termination: ""
+
+commands:
+  identify:
+    scpi: "INFO model"
+    type: "query"
+    description: "Return the model name declared by the bound profile."
+    returns:
+      type: "string"
+
+  read_temperature:
+    scpi: "READ temperature"
+    type: "query"
+    description: "Read air temperature."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "degC"
+
+  read_humidity:
+    scpi: "READ humidity"
+    type: "query"
+    description: "Read relative humidity."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "percent_rh"
+
+  read_illuminance:
+    scpi: "READ illuminance"
+    type: "query"
+    description: "Read ambient illuminance."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "lx"
+
+  read_pressure:
+    scpi: "READ pressure"
+    type: "query"
+    description: "Read barometric pressure."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "hPa"
+
+  read_sound_noise:
+    scpi: "READ sound_noise"
+    type: "query"
+    description: "Read sound noise level."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "dB"
+
+  read_etvoc:
+    scpi: "READ etvoc"
+    type: "query"
+    description: "Read equivalent total volatile organic compound concentration."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "ppb"
+
+  read_eco2:
+    scpi: "READ eco2"
+    type: "query"
+    description: "Read equivalent CO2 concentration."
+    polling_safe: true
+    returns:
+      type: "float"
+      unit: "ppm"
+
+state_query:
+  temperature:
+    command: "read_temperature"
+    unit: "degC"
+  humidity:
+    command: "read_humidity"
+    unit: "percent_rh"
+  illuminance:
+    command: "read_illuminance"
+    unit: "lx"
+  pressure:
+    command: "read_pressure"
+    unit: "hPa"
+  sound_noise:
+    command: "read_sound_noise"
+    unit: "dB"
+  etvoc:
+    command: "read_etvoc"
+    unit: "ppb"
+  eco2:
+    command: "read_eco2"
+    unit: "ppm"
+
+# Intentionally empty. This is a measurement-only device: it has no output to
+# switch off and no setpoint to return to a safe value. The backend also has
+# no write opcode in its command grammar, so no sequence of commands can leave
+# the device in an unsafe state.
+safe_shutdown: []

@@ -1,6 +1,6 @@
 # 対応機種を追加する
 
-多くの機器は `src/lab_ble_mcp/profiles/<name>.yaml` を1枚追加するだけで対応できます。Python の変更が必要なのは、フィールドが固定幅リトルエンディアン整数として表現できない場合だけです。
+多くの機器は YAML を2枚追加するだけで対応できます（`profiles/<name>.yaml` と `builtin_instruments/<name>.yaml`、同じファイル名）。Python の変更が必要なのは、フィールドが固定幅リトルエンディアン整数として表現できない場合だけです。
 
 ## 1. 実機のペイロードを採取する
 
@@ -70,18 +70,72 @@ temperature: {decoder: "switchbot_temp_c", unit: "degC"}
 
 `decoder` を使うフィールドに `offset` / `type` / `mask` / `scale` を併記することはできません（読み込み時に拒否されます）。
 
-## 3. 採取したペイロードをテストに組み込む
+## 3. 機器定義を追加する（必須）
+
+**profile だけでは `list_commands` に出ません。** 機器ごとに2つの文書が必要です。
+
+| ファイル | 答える問い |
+| --- | --- |
+| `profiles/<name>.yaml` | バイト列をどう物理量へ復号するか（BLE 固有） |
+| `builtin_instruments/<name>.yaml` | 名前付きコマンドは何があるか（エコシステム共通） |
+
+**ファイル名は同じ**にしてください。両者の対応はファイル名で結ばれ、テストで強制されます。
+
+```yaml
+metadata:
+  manufacturer: "ACME"
+  model: "TH-1"
+  category: "environment_sensor"
+  manual_ref: "ACME TH-1 BLE spec rev.2"
+  support_level: "experimental"
+  definition_version: "0.1.0"
+
+connection:
+  default_timeout_ms: 20000     # advertisement 間隔は秒単位。既定 5000 では短すぎる
+  read_termination: ""
+  write_termination: ""
+
+commands:
+  read_temperature:
+    scpi: "READ temperature"    # この backend のワイヤ言語。SCPI ではない
+    type: "query"
+    polling_safe: true
+    returns: {type: "float", unit: "degC"}
+
+state_query:
+  temperature: {command: "read_temperature", unit: "degC"}
+
+safe_shutdown: []               # 測定専用機器には安全側へ戻す動作が存在しない
+```
+
+次の対応がテストで検証されます。書き漏らすと落ちます。
+
+- profile の測定量と `READ` コマンドが**過不足なく一致**する
+- 全コマンドの `scpi` がワイヤ文法で解析できる
+- `state_query` が実在するコマンドを参照し、単位が一致する
+- `type: "write"` のコマンドやパラメータを持つコマンドが存在しない
+- profile と機器定義の `support_level` が一致する
+
+## 4. 採取したペイロードをテストに組み込む
 
 `mock_backend.CAPTURED_PAYLOADS` に実機のバイト列を追加し、`tests/test_profiles.py` に期待する物理量を書きます。これによりテストが手書きの例ではなく実機の出力に対して回ります。
 
-## 4. support_level を正しく宣言する
+## 5. support_level を正しく宣言する
 
-- `experimental`: 実機未検証。仕様書だけから起こした場合
-- `mock_verified`: 採取済みペイロードでの復号のみ確認
+lab-executor エコシステム共通の語彙を使います（BLE 固有の値を足さないでください）。
+
+- `draft`: 未検証
+- `experimental`: マニュアル等から起こした初期定義
+- `tested`: mock または実機で基本コマンドを確認済み
 - `verified`: 対象実機で確認済み
 
-`verified` を宣言する profile は `CAPTURED_PAYLOADS` に実機ペイロードを持つことがテストで強制されます。実機を持たないまま `verified` にすることはできません。
+`verified` を宣言する場合、次の2つがテストで強制されます。
 
-## 5. 書き込みは追加しない
+1. profile 側: `CAPTURED_PAYLOADS` に実機ペイロードを持つこと。実機を持たないまま `verified` にはできません
+2. 機器定義側: `metadata.validation_evidence` に `tested_by` / `tested_at` / `interface` / `tested_items` を書くこと（strict validation の要件）
+
+profile と機器定義の `support_level` は一致している必要があります。
+
+## 6. 書き込みは追加しない
 
 コマンド文法に write の opcode はありません。閾値設定や DFU の characteristic へ到達する経路を作らないでください。測定用 backend がそこへ触れる理由はなく、誤書き込みは装置を使用不能にし得ます。
