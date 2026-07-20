@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit, BEF, and format guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install package and development dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Ruff lint
+        run: ruff check src tests
+      - name: Ruff format guard
+        run: ruff format --check src tests
+      - name: BEF conformance kit
+        run: pytest -q tests/test_backends.py
+      - name: Unit test suite
+        run: pytest -q
+
+  latest-release-integration:
+    name: lab-executor latest release integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # Project dependencies resolve lab-executor-mcp from PyPI.
+      - run: python -m pip install -e ".[dev]"
+      - run: pytest -q tests/test_backends.py tests/test_integration.py
+
+  main-compatibility-smoke:
+    name: lab-executor main compatibility smoke
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -e ".[dev]"
+      - name: Replace release runtime with development main
+        run: python -m pip install --upgrade --force-reinstall "lab-executor-mcp @ git+https://github.com/TECTOS-JP/lab-executor-mcp@main"
+      - run: pytest -q tests/test_backends.py tests/test_integration.py
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: python -m twine check dist/*

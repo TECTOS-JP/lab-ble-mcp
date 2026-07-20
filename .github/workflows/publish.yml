@@ -1,0 +1,81 @@
+name: Publish to PyPI
+
+# Tag pushes publish to PyPI. Manual runs default to TestPyPI.
+# Authentication uses Trusted Publishing (OIDC), never a long-lived token.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - name: Guard sdist contents
+        run: |
+          python - <<'PY'
+          import glob, pathlib, sys, tarfile
+
+          sdist = glob.glob("dist/*.tar.gz")[0]
+          allowed_roots = {
+              ".gitignore", "CHANGELOG.md", "LICENSE", "PKG-INFO", "README.md",
+              "conftest.py", "docs", "pyproject.toml", "src", "tests",
+          }
+          forbidden = (".uv-cache", ".venv", "site-packages", ".mypy_cache", ".ruff_cache")
+          with tarfile.open(sdist) as archive:
+              files = [member.name for member in archive.getmembers() if member.isfile()]
+          unexpected = []
+          for name in files:
+              relative = pathlib.PurePosixPath(name)
+              parts = relative.parts[1:]
+              root = parts[0] if parts else ""
+              if root not in allowed_roots or any(item in name for item in forbidden):
+                  unexpected.append(name)
+          if unexpected or len(files) > 2000:
+              print(f"unexpected={unexpected[:20]!r}; file_count={len(files)}")
+              sys.exit(1)
+          print(f"sdist OK: {len(files)} files")
+          PY
+      - uses: actions/upload-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+  publish-testpypi:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
