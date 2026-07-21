@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 - 2026-07-21
+
+First release. Both bundled profiles are verified against real hardware, and
+the mock replays payloads captured from those devices, so the tests decode
+bytes the devices actually sent rather than hand-written examples.
 
 - Add the BLE sensor backend with strict `BLE::<profile>/<ADDRESS>` resource and
   read-only `READ`/`INFO` command parsers.
