@@ -30,7 +30,7 @@ lab-ble serve --resource "BLE::omron_2jcie/D0:ED:3E:53:EE:22" --dry-run
 lab-ble serve --resource "BLE::switchbot_meter/D6:DF:02:E9:08:48"
 ```
 
-### Python library
+### Python library として使う
 
 ```python
 from lab_ble_mcp import BleBackend
@@ -39,7 +39,7 @@ backend = BleBackend(resources=["BLE::omron_2jcie/D0:ED:3E:53:EE:22"])
 value = await backend.query("BLE::omron_2jcie/D0:ED:3E:53:EE:22", "READ temperature")
 ```
 
-### lab-executor backend discovery
+### lab-executor による backend discovery
 
 インストール時に entry point `lab_executor.backends: ble` が登録されます。`lab-executor serve --backends ble` または `_system.yaml` の `backends:` から選択できます。
 
