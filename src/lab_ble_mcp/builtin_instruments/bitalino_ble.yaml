@@ -21,7 +21,7 @@ metadata:
   definition_version: "0.2.0"
   validation_evidence:
     tested_by: "TECTOS"
-    tested_at: "2026-07-24"
+    tested_at: "2026-07-27"
     interface: "BLE"
     firmware: ""
     tested_items:
@@ -32,7 +32,9 @@ metadata:
     notes: >-
       Acquired from unit 88:6B:0F:8B:95:69 over GATT notifications at 100 Hz (100
       and 1000 samples) and at 1000 Hz (1000 samples), plus three back-to-back
-      captures. Every frame passed CRC-4 and the sequence counter ran without a
+      captures. The 100 Hz path and the GATT table were checked on 2026-07-24 and
+      the remaining rates and durations on 2026-07-27. Every frame passed CRC-4
+      and the sequence counter ran without a
       gap (dropped_frames = 0) in all of them, confirming this block streams the
       same frame format as the BT block. Reading the unit's GATT table showed the
       commands characteristic supports "write" (with response) but not

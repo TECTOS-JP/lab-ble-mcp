@@ -21,7 +21,7 @@ metadata:
   definition_version: "0.2.0"
   validation_evidence:
     tested_by: "TECTOS"
-    tested_at: "2026-07-24"
+    tested_at: "2026-07-27"
     interface: "BT"
     firmware: ""
     tested_items:
@@ -31,7 +31,9 @@ metadata:
       - acquire_1s_at_1000hz
     notes: >-
       Acquired from unit 20:16:12:22:46:14 over RFCOMM on COM5 at 100 Hz (100 and
-      1000 samples) and at 1000 Hz (1000 samples). Every frame passed CRC-4 and
+      1000 samples) and at 1000 Hz (1000 samples). The frames the mock replays
+      were captured on 2026-07-24; the higher rate, the ten-second capture and
+      the back-to-back runs were checked on 2026-07-27. Every frame passed CRC-4 and
       the 4-bit sequence counter ran without a gap (dropped_frames = 0) in all
       three runs, including the full-rate one. A1 showed real ADC noise around
       426 counts while the unwired channels read zero. The mock replays 16 frames

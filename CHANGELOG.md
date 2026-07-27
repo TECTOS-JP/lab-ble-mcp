@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 - 2026-07-24
+## 0.2.0 - 2026-07-27
 
 Add finite streaming acquisition for the BiTalino (r)evolution board, over both
 Bluetooth Classic (RFCOMM) and BLE, without loosening the read-only guarantee the
