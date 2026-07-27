@@ -1,0 +1,39 @@
+# BiTalino (r)evolution, Bluetooth Low Energy (BLE) block.
+#
+# Same board and same frame format as bitalino_bt (six analog inputs A1..A6,
+# A1..A4 10-bit and A5..A6 6-bit, raw ADC counts), but reached over BLE instead
+# of a Classic RFCOMM serial port. ACQUIRE writes the start bytes to the commands
+# characteristic and reads frames from the frames characteristic's notifications,
+# then stops and writes the burst to an artifact.
+#
+# Verified on hardware on 2026-07-24 (unit 88:6B:0F:8B:95:69): 100 samples at
+# 100 Hz arrived over notifications with every CRC valid and no sequence gap,
+# confirming the frame layout and start-command bytes are identical to the BT
+# block. The GATT table was read from that unit and matches the UUIDs below; the
+# commands characteristic offers "write" (with response) and not
+# write-without-response, so acknowledged writes are required. support_level is
+# "tested" rather than "verified" because only 100 Hz was exercised on one unit.
+profile: bitalino_ble
+
+metadata:
+  manufacturer: "PLUX"
+  model: "BiTalino (r)evolution (BLE)"
+  support_level: "tested"
+  definition_version: "0.2.0"
+  manual_ref: >-
+    PLUX BiTalino (r)evolution BLE block datasheet; frame format per
+    revolution-python-api; GATT UUIDs per the BiTalino BLE exchange-data service.
+
+access:
+  stream:
+    transport: ble
+    rates_hz: [1, 10, 100, 1000]
+    control_characteristic: "4051eb11-bf0a-4c74-8730-a48f4193fcea"
+    frame_characteristic: "40fdba6b-672e-47c4-808a-e529adff3633"
+    channels:
+      - {name: a1, unit: adc}
+      - {name: a2, unit: adc}
+      - {name: a3, unit: adc}
+      - {name: a4, unit: adc}
+      - {name: a5, unit: adc}
+      - {name: a6, unit: adc}

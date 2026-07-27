@@ -10,7 +10,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 
 from lab_ble_mcp.backend import BleBackend, BleBackendError, BleTransportError
-from lab_ble_mcp.profile import Advertisement, Gatt
+from lab_ble_mcp.bitalino_frame import decode_frame, encode_frame, frame_size
+from lab_ble_mcp.profile import Advertisement, Gatt, Stream
 from lab_ble_mcp.resource import parse_resource_name
 
 
@@ -34,6 +35,21 @@ CAPTURED_PAYLOADS: dict[str, dict[str, bytes]] = {
     },
 }
 
+# Sixteen consecutive six-channel frames streamed by a BiTalino (r)evolution over
+# RFCOMM at 100 Hz on 2026-07-24 (unit 20:16:12:22:46:14). Sequence numbers run
+# 0..15 with no gap and every CRC verifies. A1 was floating and shows real ADC
+# noise around 427; the remaining channels had nothing wired to them. The BLE
+# unit streams this same frame format, so replaying these exercises both
+# transports' decoding.
+CAPTURED_BITALINO_FRAMES: bytes = bytes.fromhex(
+    "0000000000acc6070000000000b0c6190000000000acc621"
+    "0000000001a8c6300000000000acc64b0000000000b0c655"
+    "0000000000acc66d0000000000a8c6760000000000acc68c"
+    "0000000001b0c6980000000000acc6aa0000000000acc6b9"
+    "0000000000acc6c00000000000b0c6de0000000000acc6e6"
+    "0000000000acc6f5"
+)
+
 
 class MockBleBackend(BleBackend):
     """Deterministic BLE backend for tests; never touches a radio."""
@@ -47,9 +63,16 @@ class MockBleBackend(BleBackend):
         payloads: Mapping[str, Mapping[str, bytes]] | None = None,
         cache_ttl_ms: int = 0,
         allow_conformance_probes: bool = True,
+        artifact_dir: str | None = None,
+        max_samples: int | None = None,
     ) -> None:
         selected = (DEFAULT_MOCK_RESOURCE,) if resources is None else tuple(resources)
-        super().__init__(resources=selected, cache_ttl_ms=cache_ttl_ms)
+        super().__init__(
+            resources=selected,
+            cache_ttl_ms=cache_ttl_ms,
+            artifact_dir=artifact_dir,
+            max_samples=max_samples,
+        )
         self._payloads = {
             profile: dict(modes)
             for profile, modes in (payloads or CAPTURED_PAYLOADS).items()
@@ -124,8 +147,47 @@ class MockBleBackend(BleBackend):
         del source, timeout_ms
         return self._captured(address, "gatt")
 
+    async def _acquire_frames(
+        self, address: str, stream: Stream, samples: int, rate_hz: int, timeout_ms: int
+    ) -> bytes:
+        """Replay frames captured from a real board; never touch a radio.
+
+        For the shipped six-channel BiTalino profiles this returns the bytes the
+        hardware actually streamed, cycling the capture when more samples are
+        asked for than were recorded. The sequence counter keeps running across
+        repeats so a replayed burst stays gap-free like the original. Profiles
+        the capture does not fit fall back to synthesized frames, which are
+        format-correct but carry no hardware evidence.
+        """
+        del address, timeout_ms, rate_hz
+        n_channels = len(stream.channels)
+        size = frame_size(n_channels)
+        captured = (
+            [
+                CAPTURED_BITALINO_FRAMES[i * size : (i + 1) * size]
+                for i in range(len(CAPTURED_BITALINO_FRAMES) // size)
+            ]
+            if n_channels == 6 and len(CAPTURED_BITALINO_FRAMES) % size == 0
+            else []
+        )
+        out = bytearray()
+        for i in range(samples):
+            if captured:
+                frame = decode_frame(captured[i % len(captured)], n_channels)
+                analog = frame.analog
+                digital = frame.digital
+            else:
+                analog = tuple(
+                    (100 * (c + 1) + i) % (1 << channel.bits)
+                    for c, channel in enumerate(stream.channels)
+                )
+                digital = (0, 0, 0, 0)
+            out.extend(encode_frame(i % 16, digital, analog))
+        return bytes(out)
+
 
 __all__ = [
+    "CAPTURED_BITALINO_FRAMES",
     "CAPTURED_PAYLOADS",
     "CONFORMANCE_QUERY",
     "CONFORMANCE_WRITE",

@@ -1,0 +1,40 @@
+# BiTalino (r)evolution, Bluetooth Classic (BT) block.
+#
+# Unlike the environment sensors in this package, BiTalino does not broadcast or
+# serve a single reading: it must be told to start, then streams framed samples
+# until told to stop. ACQUIRE performs that bounded start/stream/stop and writes
+# the result to an artifact; no continuous data crosses the query() boundary.
+#
+# The frame layout is the documented BiTalino frame (PLUX revolution-python-api):
+# channels are the six analog inputs A1..A6 in order, A1..A4 are 10-bit and
+# A5..A6 are 6-bit. Values are raw ADC counts, because the physical meaning
+# depends on which sensor is wired to each port; this backend does not invent a
+# calibration it cannot verify.
+#
+# Verified on hardware over RFCOMM on 2026-07-24 (unit 20:16:12:22:46:14, COM5):
+# 100 samples at 100 Hz arrived with every CRC valid and no sequence gap. The
+# frames the mock replays are from that capture. support_level is "tested" rather
+# than "verified" because only 100 Hz was exercised on one unit; the 1000 Hz path
+# and sensor-connected channels have not been through the same check.
+profile: bitalino_bt
+
+metadata:
+  manufacturer: "PLUX"
+  model: "BiTalino (r)evolution (BT)"
+  support_level: "tested"
+  definition_version: "0.2.0"
+  manual_ref: >-
+    PLUX BiTalino (r)evolution BT block datasheet; frame format per
+    revolution-python-api.
+
+access:
+  stream:
+    transport: rfcomm
+    rates_hz: [1, 10, 100, 1000]
+    channels:
+      - {name: a1, unit: adc}
+      - {name: a2, unit: adc}
+      - {name: a3, unit: adc}
+      - {name: a4, unit: adc}
+      - {name: a5, unit: adc}
+      - {name: a6, unit: adc}

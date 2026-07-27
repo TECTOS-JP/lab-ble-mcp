@@ -1,0 +1,84 @@
+# BiTalino (r)evolution (BT) — named commands for the streaming backend.
+#
+# Command strings are this backend's wire language, not SCPI. Byte-level framing
+# lives in bitalino_frame.py; the streaming transport lives in profiles/
+# bitalino_bt.yaml. Every command here is a query: ACQUIRE returns a reference to
+# a captured artifact, and its only writes are the board's own bounded start/stop
+# control bytes, which no command names.
+metadata:
+  manufacturer: "PLUX"
+  model: "BiTalino (r)evolution (BT)"
+  category: "biosignal_acquisition"
+  description: >-
+    Six-channel biosignal acquisition board over Bluetooth Classic. Channels
+    A1..A6 stream raw ADC counts (A1..A4 are 10-bit, A5..A6 are 6-bit); the
+    physical meaning depends on the sensor wired to each port. ACQUIRE captures a
+    finite burst to an artifact.
+  manual_ref: "PLUX BiTalino (r)evolution BT block datasheet"
+  support_level: "tested"
+  tested_interfaces: ["BT"]
+  tested_firmware: ""
+  definition_version: "0.2.0"
+  validation_evidence:
+    tested_by: "TECTOS"
+    tested_at: "2026-07-24"
+    interface: "BT"
+    firmware: ""
+    tested_items:
+      - identify
+      - acquire_1s_at_100hz
+    notes: >-
+      Acquired 100 samples at 100 Hz from unit 20:16:12:22:46:14 over RFCOMM on
+      COM5. All 100 frames passed CRC-4, the 4-bit sequence counter ran without a
+      gap (dropped_frames = 0), and A1 showed real ADC noise around 427 counts
+      while the unwired channels read zero. The mock replays 16 frames from this
+      capture. The outgoing SPP port is the one whose hardware id carries the
+      unit's MAC; the generic incoming port blocks on open. 1000 Hz and
+      sensor-connected channels were not exercised, so this is "tested" rather
+      than "verified".
+
+connection:
+  # ACQUIRE derives its own deadline from samples / rate; this nominal default is
+  # only a ceiling for short captures. It also satisfies the ecosystem guard that
+  # a cold BLE operation may need well over the 5000 ms default.
+  default_timeout_ms: 30000
+  read_termination: ""
+  write_termination: ""
+
+commands:
+  identify:
+    scpi: "INFO model"
+    type: "query"
+    description: "Return the model name declared by the bound profile."
+    returns:
+      type: "string"
+
+  acquire_1s_at_100hz:
+    scpi: "ACQUIRE 100 @100"
+    type: "query"
+    description: "Capture 100 samples at 100 Hz (1 s) to an artifact."
+    returns:
+      type: "string"
+
+  acquire_10s_at_100hz:
+    scpi: "ACQUIRE 1000 @100"
+    type: "query"
+    description: "Capture 1000 samples at 100 Hz (10 s) to an artifact."
+    returns:
+      type: "string"
+
+  acquire_1s_at_1000hz:
+    scpi: "ACQUIRE 1000 @1000"
+    type: "query"
+    description: "Capture 1000 samples at 1000 Hz (1 s) to an artifact."
+    returns:
+      type: "string"
+
+# No instantaneous state: the board reports nothing until an acquisition is
+# running, so there is no single value to poll here.
+state_query: {}
+
+# Intentionally empty. ACQUIRE already returns the board to idle with a stop byte
+# when it finishes, so nothing persists that would need to be made safe, and the
+# command grammar exposes no write a sequence could leave in an unsafe state.
+safe_shutdown: []

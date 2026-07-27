@@ -18,11 +18,15 @@ from typing import Any
 
 import yaml
 
+from lab_ble_mcp.bitalino_frame import CHANNEL_BITS, MAX_CHANNELS
 from lab_ble_mcp.codec import Field, build_field
 
 
 _PROFILE_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_]{0,31}\Z")
+_CHANNEL_NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
 _UUID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\Z")
+_STREAM_TRANSPORTS = frozenset({"rfcomm", "ble"})
+_STREAM_RATES = frozenset({1, 10, 100, 1000})
 # The lab-executor ecosystem vocabulary (see MetadataConfig.support_level).
 # Profiles and the instrument definitions in builtin_instruments/ must agree,
 # so this set is deliberately not extended with BLE-specific levels.
@@ -51,6 +55,33 @@ class Gatt:
 
 
 @dataclass(frozen=True)
+class StreamChannel:
+    """One analog channel in an acquisition frame."""
+
+    name: str
+    unit: str
+    bits: int
+
+
+@dataclass(frozen=True)
+class Stream:
+    """A device that streams framed samples instead of a single reading.
+
+    Unlike advertisement and GATT, a stream is *acquired*, not read: starting it
+    writes bounded control bytes to the device and stops it again. That write is
+    internal to an ``ACQUIRE`` and reaches only the declared control path, so the
+    grammar still exposes no general write and the read-only sensor profiles keep
+    their guarantee. Channels are the board's analog inputs A1..An in order.
+    """
+
+    transport: str
+    channels: tuple[StreamChannel, ...]
+    rates_hz: tuple[int, ...]
+    control_characteristic: str | None
+    frame_characteristic: str | None
+
+
+@dataclass(frozen=True)
 class Profile:
     """One sensor model."""
 
@@ -58,6 +89,7 @@ class Profile:
     metadata: Mapping[str, Any]
     advertisement: Advertisement | None
     gatt: Gatt | None
+    stream: Stream | None = None
 
     def field(self, measurand: str) -> tuple[str, Field]:
         """Resolve a measurand to its access mode and field.
@@ -139,6 +171,84 @@ def _build_gatt(raw: Mapping[str, Any]) -> Gatt:
     )
 
 
+def _build_stream_channels(raw: Any) -> tuple[StreamChannel, ...]:
+    if not isinstance(raw, list) or not raw:
+        raise BleProfileError("stream.channels must be a non-empty list")
+    if len(raw) > MAX_CHANNELS:
+        raise BleProfileError(f"stream.channels must declare at most {MAX_CHANNELS}")
+    channels: list[StreamChannel] = []
+    seen: set[str] = set()
+    for index, spec in enumerate(raw):
+        if not isinstance(spec, Mapping):
+            raise BleProfileError("each stream channel must be a mapping")
+        unknown = set(spec) - {"name", "unit"}
+        if unknown:
+            raise BleProfileError(
+                f"stream channel has unknown keys: {sorted(unknown)!r}"
+            )
+        cname = spec.get("name")
+        if not isinstance(cname, str) or _CHANNEL_NAME_RE.fullmatch(cname) is None:
+            raise BleProfileError("stream channel name must be a lowercase identifier")
+        if cname in seen:
+            raise BleProfileError(f"duplicate stream channel name: {cname!r}")
+        seen.add(cname)
+        unit = spec.get("unit")
+        if not isinstance(unit, str) or not unit:
+            raise BleProfileError(f"stream channel {cname!r} must declare a unit")
+        channels.append(StreamChannel(name=cname, unit=unit, bits=CHANNEL_BITS[index]))
+    return tuple(channels)
+
+
+def _build_stream(raw: Mapping[str, Any]) -> Stream:
+    unknown = set(raw) - {
+        "transport",
+        "channels",
+        "rates_hz",
+        "control_characteristic",
+        "frame_characteristic",
+    }
+    if unknown:
+        raise BleProfileError(f"stream has unknown keys: {sorted(unknown)!r}")
+    transport = raw.get("transport")
+    if transport not in _STREAM_TRANSPORTS:
+        raise BleProfileError(
+            f"stream.transport must be one of {sorted(_STREAM_TRANSPORTS)!r}"
+        )
+    rates = raw.get("rates_hz")
+    if (
+        not isinstance(rates, list)
+        or not rates
+        or any(rate not in _STREAM_RATES for rate in rates)
+        or len(set(rates)) != len(rates)
+    ):
+        raise BleProfileError(
+            f"stream.rates_hz must be a non-empty list of distinct rates from "
+            f"{sorted(_STREAM_RATES)!r}"
+        )
+    control = raw.get("control_characteristic")
+    frame = raw.get("frame_characteristic")
+    if transport == "ble":
+        for key, value in (
+            ("control_characteristic", control),
+            ("frame_characteristic", frame),
+        ):
+            if not isinstance(value, str) or _UUID_RE.fullmatch(value) is None:
+                raise BleProfileError(
+                    f"ble stream.{key} must be a lowercase 128-bit UUID"
+                )
+    elif control is not None or frame is not None:
+        raise BleProfileError(
+            "rfcomm stream must not declare control/frame characteristics"
+        )
+    return Stream(
+        transport=transport,
+        channels=_build_stream_channels(raw.get("channels")),
+        rates_hz=tuple(rates),
+        control_characteristic=control,
+        frame_characteristic=frame,
+    )
+
+
 def build_profile(name: str, document: Any) -> Profile:
     """Validate one profile document loaded from YAML."""
     if _PROFILE_NAME_RE.fullmatch(name) is None:
@@ -168,7 +278,7 @@ def build_profile(name: str, document: Any) -> Profile:
     access = document.get("access")
     if not isinstance(access, Mapping) or not access:
         raise BleProfileError(f"profile {name!r} must declare a non-empty access block")
-    unknown = set(access) - {"advertisement", "gatt"}
+    unknown = set(access) - {"advertisement", "gatt", "stream"}
     if unknown:
         raise BleProfileError(
             f"profile {name!r} access has unknown keys: {sorted(unknown)!r}"
@@ -176,11 +286,20 @@ def build_profile(name: str, document: Any) -> Profile:
 
     advertisement = access.get("advertisement")
     gatt = access.get("gatt")
+    stream = access.get("stream")
+    if stream is not None and (advertisement is not None or gatt is not None):
+        raise BleProfileError(
+            f"profile {name!r} streams, so it must not also declare "
+            "advertisement or gatt access"
+        )
+    if stream is not None and not isinstance(stream, Mapping):
+        raise BleProfileError(f"profile {name!r} stream must be a mapping")
     return Profile(
         name=name,
         metadata=dict(metadata),
         advertisement=_build_advertisement(advertisement) if advertisement else None,
         gatt=_build_gatt(gatt) if gatt else None,
+        stream=_build_stream(stream) if stream else None,
     )
 
 
@@ -212,6 +331,8 @@ __all__ = [
     "BleProfileError",
     "Gatt",
     "Profile",
+    "Stream",
+    "StreamChannel",
     "available_profiles",
     "build_profile",
     "load_profile",

@@ -71,10 +71,12 @@ def test_pyproject_has_frozen_packaging_metadata_and_sdist_allowlist():
     data = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
     project = data["project"]
     assert project["name"] == "lab-ble-mcp"
-    assert project["version"] == "0.1.0"
+    assert project["version"] == "0.2.0"
     assert "lab-executor-mcp>=2.35.0,<3.0.0" in project["dependencies"]
     assert any(item.startswith("bleak") for item in project["dependencies"])
+    assert any(item.startswith("numpy") for item in project["dependencies"])
     assert any(item.startswith("PyYAML") for item in project["dependencies"])
+    assert project["optional-dependencies"]["rfcomm"] == ["pyserial>=3.5"]
     assert project["license-files"] == ["LICENSE"]
     assert set(project["urls"]) >= {"Homepage", "Repository", "Changelog", "Issues"}
     assert project["entry-points"]["lab_executor.backends"]["ble"] == (

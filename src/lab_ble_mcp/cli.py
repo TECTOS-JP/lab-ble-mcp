@@ -44,8 +44,38 @@ def _parser() -> argparse.ArgumentParser:
         default=0,
         help="localhost control-plane port (default: 0, OS-assigned)",
     )
+    serve.add_argument(
+        "--artifact-dir",
+        default=None,
+        help="directory for ACQUIRE artifacts (required to stream from a "
+        "BiTalino profile)",
+    )
+    serve.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="ceiling on samples per ACQUIRE (required to stream)",
+    )
+    serve.add_argument(
+        "--port-map",
+        action="append",
+        default=[],
+        metavar="ADDRESS=PORT",
+        help="map an RFCOMM resource address to its serial port, e.g. "
+        "AA:BB:CC:DD:EE:FF=COM7 (repeat for multiple)",
+    )
     subparsers.add_parser("profiles", help="list bundled device profiles")
     return parser
+
+
+def _parse_port_map(entries: Sequence[str]) -> dict[str, str]:
+    port_map: dict[str, str] = {}
+    for entry in entries:
+        address, sep, port = entry.partition("=")
+        if not sep or not address or not port:
+            raise ValueError(f"--port-map entry must be ADDRESS=PORT, got {entry!r}")
+        port_map[address] = port
+    return port_map
 
 
 async def _dry_run(mcp: object, backend: BleBackend) -> None:
@@ -68,7 +98,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(name)
         return 0
     try:
-        backend = BleBackend(resources=args.resource)
+        backend = BleBackend(
+            resources=args.resource,
+            artifact_dir=args.artifact_dir,
+            max_samples=args.max_samples,
+            port_map=_parse_port_map(args.port_map),
+        )
     except (TypeError, ValueError) as exc:
         parser.error(str(exc))
     mcp, job_mgr = compose_server(backend, name="lab-ble-mcp")

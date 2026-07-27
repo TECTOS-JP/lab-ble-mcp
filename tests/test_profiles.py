@@ -79,7 +79,11 @@ def test_bundled_profiles_load_and_declare_verified_support():
     for name in names:
         profile = load_profile(name)
         assert profile.name == name
-        assert profile.advertisement is not None or profile.gatt is not None
+        assert (
+            profile.advertisement is not None
+            or profile.gatt is not None
+            or profile.stream is not None
+        )
         assert profile.metadata["support_level"] in {
             "verified",
             "tested",
