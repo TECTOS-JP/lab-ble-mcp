@@ -15,7 +15,6 @@ from lab_ble_mcp.profile import (
     load_profile,
 )
 
-
 # Expected physical values for the payloads in CAPTURED_PAYLOADS. These were
 # read off real devices on 2026-07-20 and are the reason the profiles exist.
 OMRON_ADVERTISEMENT = {

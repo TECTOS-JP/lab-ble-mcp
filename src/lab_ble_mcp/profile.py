@@ -9,18 +9,17 @@ OMRON both broadcasts and serves the same measurands over GATT.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from importlib import resources
-import re
 from typing import Any
 
 import yaml
 
 from lab_ble_mcp.bitalino_frame import CHANNEL_BITS, MAX_CHANNELS
 from lab_ble_mcp.codec import Field, build_field
-
 
 _PROFILE_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_]{0,31}\Z")
 _CHANNEL_NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
@@ -303,7 +302,7 @@ def build_profile(name: str, document: Any) -> Profile:
     )
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_profile(name: str) -> Profile:
     """Load and validate one bundled profile by name."""
     if _PROFILE_NAME_RE.fullmatch(name) is None:

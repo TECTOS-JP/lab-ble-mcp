@@ -14,7 +14,6 @@ from lab_ble_mcp.bitalino_frame import decode_frame, encode_frame, frame_size
 from lab_ble_mcp.profile import Advertisement, Gatt, Stream
 from lab_ble_mcp.resource import parse_resource_name
 
-
 DEFAULT_MOCK_RESOURCE = "BLE::omron_2jcie/D0:ED:3E:53:EE:22"
 CONFORMANCE_QUERY = "*IDN?"
 CONFORMANCE_WRITE = "CONF"

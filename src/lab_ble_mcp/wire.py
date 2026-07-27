@@ -15,10 +15,9 @@ characteristic or a value to write.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Literal
-
 
 _NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}\Z")
 _UINT_RE = re.compile(r"[1-9][0-9]{0,8}\Z")

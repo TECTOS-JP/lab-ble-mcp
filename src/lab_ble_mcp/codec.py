@@ -10,9 +10,9 @@ the schema simple.
 
 from __future__ import annotations
 
+import struct
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-import struct
 from typing import Any
 
 
@@ -132,4 +132,4 @@ def build_field(name: str, spec: Mapping[str, Any]) -> Field:
     )
 
 
-__all__ = ["BleCodecError", "CUSTOM_DECODERS", "Field", "build_field"]
+__all__ = ["CUSTOM_DECODERS", "BleCodecError", "Field", "build_field"]

@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from lab_executor.backends import (
     BackendRegistration,
     CompositeBackend,
@@ -14,7 +13,6 @@ from lab_executor.backends import (
 
 from lab_ble_mcp.cli import main
 from lab_ble_mcp.mock_backend import DEFAULT_MOCK_RESOURCE, MockBleBackend
-
 
 ROOT = Path(__file__).parents[1]
 

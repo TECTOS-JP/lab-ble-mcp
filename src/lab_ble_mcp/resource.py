@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-
+from dataclasses import dataclass
 
 _RESOURCE_RE = re.compile(
     r"BLE::(?P<profile>[a-z0-9][a-z0-9_]{0,31})/(?P<address>[0-9A-F]{2}(?::[0-9A-F]{2}){5})\Z"

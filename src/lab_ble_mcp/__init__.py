@@ -18,7 +18,7 @@ __all__ = [
     "BleWriteRejected",
     "MockBleBackend",
     "Profile",
+    "__version__",
     "available_profiles",
     "load_profile",
-    "__version__",
 ]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from typing import Sequence
+from collections.abc import Sequence
 
 from lab_executor.control_plane import run_mcp_with_control
 from lab_executor.server import compose_server
@@ -79,7 +79,7 @@ def _parse_port_map(entries: Sequence[str]) -> dict[str, str]:
 
 
 async def _dry_run(mcp: object, backend: BleBackend) -> None:
-    list_tools = getattr(mcp, "list_tools")
+    list_tools = mcp.list_tools
     tools = await list_tools()
     payload = {
         "backend_id": backend.backend_id,

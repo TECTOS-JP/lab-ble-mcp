@@ -18,7 +18,6 @@ from lab_executor.models.instrument_def import InstrumentDefinition
 from lab_ble_mcp.profile import available_profiles, load_profile
 from lab_ble_mcp.wire import parse_wire_command
 
-
 ROOT = Path(__file__).parents[1]
 DEFINITIONS_DIR = ROOT / "src" / "lab_ble_mcp" / "builtin_instruments"
 ECOSYSTEM_SUPPORT_LEVELS = {"verified", "tested", "experimental", "draft"}

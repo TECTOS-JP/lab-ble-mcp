@@ -9,13 +9,11 @@ except ImportError:  # Python 3.10
     import tomli as tomllib
 
 import pytest
-
 from lab_executor.backends import BackendRegistration, discover_backends
 
 from lab_ble_mcp.backend import BleBackend
 from lab_ble_mcp.discovery import make_backend
 from lab_ble_mcp.mock_backend import DEFAULT_MOCK_RESOURCE
-
 
 ROOT = Path(__file__).parents[1]
 

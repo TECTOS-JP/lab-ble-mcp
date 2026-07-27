@@ -8,12 +8,14 @@ Bluetooth stack.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable, Mapping
-from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
+import logging
 import time
+from collections.abc import Iterable, Mapping
+from datetime import datetime, timezone
+from itertools import pairwise
+from pathlib import Path
 from typing import Any
 
 from lab_ble_mcp.bitalino_frame import (
@@ -27,12 +29,13 @@ from lab_ble_mcp.profile import Advertisement, Gatt, Profile, Stream, load_profi
 from lab_ble_mcp.resource import BleResource, parse_resource_name
 from lab_ble_mcp.wire import WireCommand, parse_wire_command
 
-
 DEFAULT_CACHE_TTL_MS = 10_000
 
 # Nominal SPP baud; a Bluetooth virtual serial port ignores it, but pyserial
 # requires a value to open the port.
 _RFCOMM_BAUD = 115200
+
+_log = logging.getLogger(__name__)
 
 
 class BleBackendError(RuntimeError):
@@ -341,8 +344,10 @@ class BleBackend:
         finally:
             try:
                 await scanner.stop()
-            except Exception:  # pragma: no cover - best effort teardown
-                pass
+            # Teardown must not mask the scan's own outcome, so every failure is
+            # caught; it is logged rather than swallowed silently.
+            except Exception as exc:  # noqa: BLE001  # pragma: no cover
+                _log.debug("failed to stop BLE scanner for %s: %s", address, exc)
 
     async def _read_gatt(self, address: str, source: Gatt, timeout_ms: int) -> bytes:
         """Connect, read one characteristic, and disconnect."""
@@ -470,8 +475,10 @@ class BleBackend:
                             response=True,
                         )
                         await client.stop_notify(stream.frame_characteristic)
-                    except Exception:  # pragma: no cover - best effort teardown
-                        pass
+                    # Stopping the board must not mask an acquisition failure, so
+                    # every failure is caught; it is logged, never swallowed.
+                    except Exception as exc:  # noqa: BLE001  # pragma: no cover
+                        _log.debug("failed to stop acquisition on %s: %s", address, exc)
         except asyncio.TimeoutError as exc:
             raise BleTransportError(
                 f"acquired {len(buffer) // frame_size(n_channels)}/{samples} "
@@ -503,7 +510,7 @@ def _count_sequence_gaps(frames: list[DecodedFrame]) -> int:
     artifact rather than silently smoothed over.
     """
     dropped = 0
-    for previous, current in zip(frames, frames[1:]):
+    for previous, current in pairwise(frames):
         dropped += (current.sequence - previous.sequence - 1) % 16
     return dropped
 

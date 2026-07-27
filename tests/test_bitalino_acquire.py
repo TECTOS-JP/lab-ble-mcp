@@ -19,7 +19,6 @@ from lab_ble_mcp.bitalino_frame import decode_frame, encode_frame, frame_size
 from lab_ble_mcp.mock_backend import CAPTURED_BITALINO_FRAMES, MockBleBackend
 from lab_ble_mcp.profile import load_profile
 
-
 BITALINO = "BLE::bitalino_bt/AA:BB:CC:DD:EE:FF"
 OMRON = "BLE::omron_2jcie/D0:ED:3E:53:EE:22"
 

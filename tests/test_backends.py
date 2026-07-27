@@ -3,7 +3,6 @@ from __future__ import annotations
 import inspect
 
 import pytest
-
 from lab_executor.backends import InstrumentBackend
 from lab_executor.testing.backend_conformance import assert_backend_contract
 
@@ -11,7 +10,6 @@ from lab_ble_mcp.backend import BleBackend, BleBackendError, BleWriteRejected
 from lab_ble_mcp.mock_backend import DEFAULT_MOCK_RESOURCE, MockBleBackend
 from lab_ble_mcp.profile import BleProfileError
 from lab_ble_mcp.wire import BleWireError
-
 
 SWITCHBOT = "BLE::switchbot_meter/D6:DF:02:E9:08:48"
 

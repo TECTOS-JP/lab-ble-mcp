@@ -5,7 +5,6 @@ import pytest
 from lab_ble_mcp.resource import BleResourceError, parse_resource_name
 from lab_ble_mcp.wire import BleWireError, parse_wire_command
 
-
 VALID = "BLE::omron_2jcie/D0:ED:3E:53:EE:22"
 
 
