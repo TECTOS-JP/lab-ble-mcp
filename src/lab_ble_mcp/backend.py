@@ -35,6 +35,11 @@ DEFAULT_CACHE_TTL_MS = 10_000
 # requires a value to open the port.
 _RFCOMM_BAUD = 115200
 
+# A Bluetooth link needs a moment to be released after a session closes, so an
+# immediate reopen can fail; these bound how long an open is retried for.
+_RFCOMM_OPEN_ATTEMPTS = 3
+_RFCOMM_OPEN_RETRY_S = 1.5
+
 _log = logging.getLogger(__name__)
 
 
@@ -397,6 +402,32 @@ class BleBackend:
             self._rfcomm_session, port, stream, samples, rate_hz, timeout_ms
         )
 
+    @staticmethod
+    def _open_rfcomm(serial: Any, port: str) -> Any:
+        """Open the port, retrying while the previous link finishes tearing down.
+
+        A Bluetooth serial link is not free the instant the port is closed: on
+        Windows an open issued immediately after a completed acquisition fails
+        with a semaphore timeout, then succeeds a second later. Retrying is safe
+        here in a way retrying an acquisition would not be, because a failed open
+        has sent no bytes to the board, so nothing can be applied twice.
+        """
+        last: Exception | None = None
+        for attempt in range(_RFCOMM_OPEN_ATTEMPTS):
+            try:
+                return serial.Serial(port, _RFCOMM_BAUD, timeout=1.0)
+            except Exception as exc:  # noqa: BLE001  # pragma: no cover
+                last = exc
+                _log.debug(
+                    "RFCOMM open of %s failed (try %d): %s", port, attempt + 1, exc
+                )
+                if attempt + 1 < _RFCOMM_OPEN_ATTEMPTS:
+                    time.sleep(_RFCOMM_OPEN_RETRY_S)
+        raise BleTransportError(
+            f"failed to open RFCOMM port {port} after {_RFCOMM_OPEN_ATTEMPTS} "
+            f"attempts: {last}"
+        ) from last
+
     def _rfcomm_session(
         self, port: str, stream: Stream, samples: int, rate_hz: int, timeout_ms: int
     ) -> bytes:
@@ -411,12 +442,7 @@ class BleBackend:
         need = frame_size(n_channels) * samples
         deadline = time.monotonic() + max(timeout_ms / 1000, samples / rate_hz + 5.0)
         buffer = bytearray()
-        try:
-            connection = serial.Serial(port, _RFCOMM_BAUD, timeout=1.0)
-        except Exception as exc:  # pragma: no cover - depends on host radio
-            raise BleTransportError(
-                f"failed to open RFCOMM port {port}: {exc}"
-            ) from exc
+        connection = self._open_rfcomm(serial, port)
         try:
             connection.write(start_command(rate_hz, n_channels))
             while len(buffer) < need and time.monotonic() < deadline:

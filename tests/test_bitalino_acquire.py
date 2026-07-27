@@ -14,7 +14,12 @@ import json
 import numpy as np
 import pytest
 
-from lab_ble_mcp.backend import BleBackendError, BleWriteRejected
+from lab_ble_mcp.backend import (
+    BleBackend,
+    BleBackendError,
+    BleTransportError,
+    BleWriteRejected,
+)
 from lab_ble_mcp.bitalino_frame import decode_frame, encode_frame, frame_size
 from lab_ble_mcp.mock_backend import CAPTURED_BITALINO_FRAMES, MockBleBackend
 from lab_ble_mcp.profile import load_profile
@@ -118,6 +123,41 @@ def test_captured_hardware_frames_decode_cleanly():
     assert 420 <= min(a1) <= max(a1) <= 435  # floating input, real ADC noise
     assert len(set(a1)) > 1  # genuine noise, not a constant stuck value
     assert all(f.analog[2:] == (0, 0, 0, 0) for f in frames)
+
+
+class _FlakySerial:
+    """Stand-in for pyserial that refuses the first ``failures`` opens."""
+
+    def __init__(self, failures: int) -> None:
+        self.remaining = failures
+        self.opens = 0
+
+    def Serial(self, port, baud, timeout):
+        self.opens += 1
+        if self.remaining > 0:
+            self.remaining -= 1
+            raise OSError(22, "semaphore timeout")
+        return object()
+
+
+def test_rfcomm_open_retries_while_the_previous_link_releases(monkeypatch):
+    """A reopen right after a session must not fail the acquisition.
+
+    Observed on hardware: an open issued immediately after a completed capture
+    fails with a semaphore timeout and succeeds moments later. Retrying the open
+    is safe because no start byte has reached the board yet.
+    """
+    monkeypatch.setattr("lab_ble_mcp.backend.time.sleep", lambda _s: None)
+    flaky = _FlakySerial(failures=2)
+    assert BleBackend._open_rfcomm(flaky, "COM5") is not None
+    assert flaky.opens == 3
+
+
+def test_rfcomm_open_gives_up_with_a_diagnostic(monkeypatch):
+    monkeypatch.setattr("lab_ble_mcp.backend.time.sleep", lambda _s: None)
+    flaky = _FlakySerial(failures=99)
+    with pytest.raises(BleTransportError, match="after 3 attempts"):
+        BleBackend._open_rfcomm(flaky, "COM5")
 
 
 @pytest.mark.asyncio

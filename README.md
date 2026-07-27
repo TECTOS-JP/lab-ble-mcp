@@ -52,7 +52,7 @@ value = await backend.query("BLE::omron_2jcie/D0:ED:3E:53:EE:22", "READ temperat
 | `bitalino_bt` | BiTalino (r)evolution (BT) | RFCOMM シリアル | A1–A6(A1–A4 は 10bit、A5–A6 は 6bit、生 ADC 値) |
 | `bitalino_ble` | BiTalino (r)evolution (BLE) | BLE notify | 同上 |
 
-**どちらも実機で検証済みです(2026-07-24)。** 両機とも 100 Hz で 100 サンプルを取得し、全フレームが CRC4 を通過、シーケンス番号に欠落なし(`dropped_frames` = 0)、未接続の A1 は 427 counts 付近の実 ADC ノイズを示しました。同梱 mock は、このとき BT 機から採取した実フレームをそのまま再生します。`support_level` が `verified` でなく `tested` なのは、検証したのが 100 Hz・各1台のみで、1000 Hz とセンサ接続時のチャネルが未確認のためです。
+**どちらも実機で検証済みです(2026-07-24)。** 両機とも 100 Hz で 100 サンプルを取得し、全フレームが CRC4 を通過、シーケンス番号に欠落なし(`dropped_frames` = 0)、未接続の A1 は 427 counts 付近の実 ADC ノイズを示しました。BT 機ではさらに **1000 Hz × 1000 サンプル(最大レート)と 100 Hz × 1000 サンプル(10 秒連続)も `dropped_frames` = 0** で取得できています。同梱 mock は、このとき BT 機から採取した実フレームをそのまま再生します。`support_level` が `verified` でなく `tested` なのは、センサを接続した状態のチャネルが未確認で、BLE 機の 1000 Hz も未検証のためです。
 
 ```powershell
 # 100 Hz で 1 秒(100 サンプル)を取得し、アーティファクト参照を得る
@@ -66,6 +66,7 @@ lab-ble serve --resource "BLE::bitalino_bt/AA:BB:CC:DD:EE:FF" `
 - 4bit のシーケンス番号で取りこぼしを数え、`dropped_frames` として記録します(黙って補間しません)。
 - **BT** は RFCOMM ポートが必要です(Windows は SPP の COM ポート)。`--port-map "<ADDR>=<PORT>"` で resource アドレス(MAC)に紐付けます。pyserial が要ります(`pip install lab-ble-mcp[rfcomm]`)。
   - **ポートは2つ現れることがあります。** 機器の MAC がハードウェア ID に含まれている方(送信用)を指定してください。もう一方は着信用で、開くとブロックします。`python -m serial.tools.list_ports -v` の `hwid` で判別できます。
+  - 取得直後はリンクの解放が終わるまでポートを開けないため、オープンのみ数回リトライします(開始バイトはまだ送っていないので、再試行しても機器側に二重適用は起きません)。取得そのものは再試行しません。
 - **BLE** は profile 内で宣言した commands / frames characteristic を使います。フレーム形式は BT と同一であることを実機で確認済みです。commands characteristic は応答ありの `write` のみを備え `write-without-response` を持たないため、開始/停止は応答あり書き込みで送ります(応答なしでは開始コマンドが届かず 0 フレームになります)。
 
 ## 安全設計

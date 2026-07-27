@@ -27,15 +27,21 @@ metadata:
     tested_items:
       - identify
       - acquire_1s_at_100hz
+      - acquire_10s_at_100hz
+      - acquire_1s_at_1000hz
     notes: >-
-      Acquired 100 samples at 100 Hz from unit 20:16:12:22:46:14 over RFCOMM on
-      COM5. All 100 frames passed CRC-4, the 4-bit sequence counter ran without a
-      gap (dropped_frames = 0), and A1 showed real ADC noise around 427 counts
-      while the unwired channels read zero. The mock replays 16 frames from this
-      capture. The outgoing SPP port is the one whose hardware id carries the
-      unit's MAC; the generic incoming port blocks on open. 1000 Hz and
-      sensor-connected channels were not exercised, so this is "tested" rather
-      than "verified".
+      Acquired from unit 20:16:12:22:46:14 over RFCOMM on COM5 at 100 Hz (100 and
+      1000 samples) and at 1000 Hz (1000 samples). Every frame passed CRC-4 and
+      the 4-bit sequence counter ran without a gap (dropped_frames = 0) in all
+      three runs, including the full-rate one. A1 showed real ADC noise around
+      426 counts while the unwired channels read zero. The mock replays 16 frames
+      from the 100 Hz capture. The outgoing SPP port is the one whose hardware id
+      carries the unit's MAC; the generic incoming port blocks on open. Opening
+      the port immediately after a completed capture fails with a semaphore
+      timeout until the link is released, so the open is retried; three
+      back-to-back acquisitions then succeeded. Sensor-connected channels and the
+      1 Hz and 10 Hz rates were not exercised, so this is "tested" rather than
+      "verified".
 
 connection:
   # ACQUIRE derives its own deadline from samples / rate; this nominal default is

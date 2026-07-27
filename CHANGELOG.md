@@ -29,6 +29,11 @@ samples at 100 Hz from each unit, every frame passing CRC-4 with no sequence gap
 - Send BLE start/stop as acknowledged writes: the board's commands
   characteristic offers `write` but not write-without-response, and
   unacknowledged writes left it idle, yielding zero frames.
+- Retry opening the RFCOMM port while the previous link is still being released.
+  A capture issued right after a completed one failed with a semaphore timeout
+  until the retry was added; three back-to-back acquisitions then succeeded. Only
+  the open is retried, never the acquisition: a failed open has sent no start
+  byte, so nothing can be applied to the board twice.
 
 ## 0.1.0 - 2026-07-21
 
