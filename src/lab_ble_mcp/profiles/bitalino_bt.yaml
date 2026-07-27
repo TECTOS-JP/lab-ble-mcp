@@ -11,11 +11,12 @@
 # depends on which sensor is wired to each port; this backend does not invent a
 # calibration it cannot verify.
 #
-# Verified on hardware over RFCOMM on 2026-07-24 (unit 20:16:12:22:46:14, COM5):
-# 100 samples at 100 Hz arrived with every CRC valid and no sequence gap. The
-# frames the mock replays are from that capture. support_level is "tested" rather
-# than "verified" because only 100 Hz was exercised on one unit; the 1000 Hz path
-# and sensor-connected channels have not been through the same check.
+# Verified on hardware over RFCOMM (unit 20:16:12:22:46:14, COM5) at 100 Hz and
+# at the full 1000 Hz, including a ten-second capture: every CRC valid, no
+# sequence gap. The frames the mock replays are from that capture. support_level
+# is "tested" rather than "verified" because the channels were never exercised
+# with a sensor attached. A known issue is open: the first capture after an idle
+# link can return zero frames, and the mitigation for it is unproven (see README).
 profile: bitalino_bt
 
 metadata:

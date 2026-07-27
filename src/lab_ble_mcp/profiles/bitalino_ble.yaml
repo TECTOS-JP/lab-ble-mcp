@@ -6,13 +6,14 @@
 # characteristic and reads frames from the frames characteristic's notifications,
 # then stops and writes the burst to an artifact.
 #
-# Verified on hardware on 2026-07-24 (unit 88:6B:0F:8B:95:69): 100 samples at
-# 100 Hz arrived over notifications with every CRC valid and no sequence gap,
-# confirming the frame layout and start-command bytes are identical to the BT
-# block. The GATT table was read from that unit and matches the UUIDs below; the
-# commands characteristic offers "write" (with response) and not
-# write-without-response, so acknowledged writes are required. support_level is
-# "tested" rather than "verified" because only 100 Hz was exercised on one unit.
+# Verified on hardware (unit 88:6B:0F:8B:95:69) at 100 Hz and at the full
+# 1000 Hz, including a ten-second capture and three back-to-back captures: every
+# CRC valid, no sequence gap. This confirms the frame layout and start-command
+# bytes are identical to the BT block. The GATT table was read from that unit and
+# matches the UUIDs below; the commands characteristic offers "write" (with
+# response) and not write-without-response, so acknowledged writes are required.
+# support_level is "tested" rather than "verified" because the channels were
+# never exercised with a sensor attached.
 profile: bitalino_ble
 
 metadata:

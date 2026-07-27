@@ -160,6 +160,81 @@ def test_rfcomm_open_gives_up_with_a_diagnostic(monkeypatch):
         BleBackend._open_rfcomm(flaky, "COM5")
 
 
+class _SilentThenStreamingPort:
+    """A port that ignores the first start command, as a cold link does."""
+
+    def __init__(self, payload: bytes, *, starts_ignored: int) -> None:
+        self.payload = payload
+        self.starts_ignored = starts_ignored
+        self.writes: list[bytes] = []
+        self._streaming = False
+        self._sent = 0
+
+    def write(self, data: bytes) -> None:
+        self.writes.append(bytes(data))
+        if data == bytes((0x00,)):
+            self._streaming = False
+        elif self.starts_ignored > 0:
+            self.starts_ignored -= 1  # swallowed: the board never starts
+        else:
+            self._streaming = True
+
+    def read(self, size: int) -> bytes:
+        if not self._streaming:
+            return b""
+        chunk = self.payload[self._sent : self._sent + size]
+        self._sent += len(chunk)
+        return chunk
+
+    def reset_input_buffer(self) -> None:
+        self._sent = 0
+
+    def close(self) -> None:
+        pass
+
+
+def test_acquisition_restarts_when_the_board_stays_silent(monkeypatch):
+    """A cold link that swallows the start command must not yield an empty capture.
+
+    Observed on hardware: the first acquisition after an idle period opens the
+    port and writes the start command, yet no frame ever arrives, while the next
+    attempt streams normally. The session restarts the board instead of returning
+    nothing.
+    """
+    monkeypatch.setattr("lab_ble_mcp.backend.time.sleep", lambda _s: None)
+    monkeypatch.setattr("lab_ble_mcp.backend._RFCOMM_FIRST_BYTE_S", 0.0)
+    payload = b"".join(
+        encode_frame(i % 16, (0, 0, 0, 0), (1, 2, 3, 4, 5, 6)) for i in range(4)
+    )
+    port = _SilentThenStreamingPort(payload, starts_ignored=1)
+    backend = BleBackend()
+    monkeypatch.setattr(backend, "_open_rfcomm", lambda _serial, _port: port)
+
+    stream = load_profile("bitalino_bt").stream
+    raw = backend._rfcomm_session("COM5", stream, 4, 100, 15000)
+
+    assert raw == payload
+    # start, stop, start again, then the final stop from the teardown.
+    assert len(port.writes) == 4
+    assert port.writes[0] == port.writes[2]  # the same start command, unchanged
+
+
+def test_a_streaming_board_is_never_restarted(monkeypatch):
+    """Once a frame has arrived the start command must not be sent again."""
+    monkeypatch.setattr("lab_ble_mcp.backend.time.sleep", lambda _s: None)
+    monkeypatch.setattr("lab_ble_mcp.backend._RFCOMM_FIRST_BYTE_S", 0.0)
+    payload = b"".join(
+        encode_frame(i % 16, (0, 0, 0, 0), (1, 2, 3, 4, 5, 6)) for i in range(4)
+    )
+    port = _SilentThenStreamingPort(payload, starts_ignored=0)
+    backend = BleBackend()
+    monkeypatch.setattr(backend, "_open_rfcomm", lambda _serial, _port: port)
+
+    stream = load_profile("bitalino_bt").stream
+    assert backend._rfcomm_session("COM5", stream, 4, 100, 15000) == payload
+    assert len(port.writes) == 2  # one start, one stop; no restart
+
+
 @pytest.mark.asyncio
 async def test_dropped_frames_are_reported_not_smoothed(tmp_path):
     backend = _streaming_backend(tmp_path)

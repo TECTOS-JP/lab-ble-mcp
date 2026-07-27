@@ -27,15 +27,18 @@ metadata:
     tested_items:
       - identify
       - acquire_1s_at_100hz
+      - acquire_10s_at_100hz
+      - acquire_1s_at_1000hz
     notes: >-
-      Acquired 100 samples at 100 Hz from unit 88:6B:0F:8B:95:69 over GATT
-      notifications. All 100 frames passed CRC-4 and the sequence counter ran
-      without a gap (dropped_frames = 0), confirming this block streams the same
-      frame format as the BT block. Reading the unit's GATT table showed the
+      Acquired from unit 88:6B:0F:8B:95:69 over GATT notifications at 100 Hz (100
+      and 1000 samples) and at 1000 Hz (1000 samples), plus three back-to-back
+      captures. Every frame passed CRC-4 and the sequence counter ran without a
+      gap (dropped_frames = 0) in all of them, confirming this block streams the
+      same frame format as the BT block. Reading the unit's GATT table showed the
       commands characteristic supports "write" (with response) but not
       write-without-response; unacknowledged writes left the board idle and
-      yielded zero frames. 1000 Hz and sensor-connected channels were not
-      exercised, so this is "tested" rather than "verified".
+      yielded zero frames. Sensor-connected channels and the 1 Hz and 10 Hz rates
+      were not exercised, so this is "tested" rather than "verified".
 
 connection:
   # ACQUIRE derives its own deadline from samples / rate; this nominal default is

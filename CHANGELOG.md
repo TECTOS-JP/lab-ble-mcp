@@ -29,6 +29,15 @@ samples at 100 Hz from each unit, every frame passing CRC-4 with no sequence gap
 - Send BLE start/stop as acknowledged writes: the board's commands
   characteristic offers `write` but not write-without-response, and
   unacknowledged writes left it idle, yielding zero frames.
+- Restart a silent RFCOMM acquisition once the board has produced no frame for a
+  short while. **This mitigation is not proven on hardware:** the first capture
+  after an idle link sometimes returns zero frames, the restart recovered that
+  case once, and then the same case failed again before the unit went offline, so
+  the second failure could not be attributed. The root cause is unknown. A capture
+  that stays empty still raises rather than being reported as successful, and the
+  restart only happens while no frame has arrived, so a running stream is never
+  disturbed. It also stays inside the caller's `timeout_ms` instead of extending
+  it.
 - Retry opening the RFCOMM port while the previous link is still being released.
   A capture issued right after a completed one failed with a semaphore timeout
   until the retry was added; three back-to-back acquisitions then succeeded. Only

@@ -40,6 +40,14 @@ _RFCOMM_BAUD = 115200
 _RFCOMM_OPEN_ATTEMPTS = 3
 _RFCOMM_OPEN_RETRY_S = 1.5
 
+# How long to wait for the first frame before restarting the acquisition, and how
+# many times to try. The board can stay silent when the link has been idle. These
+# restarts happen inside the caller's deadline, never by extending it: a
+# timeout_ms too small to absorb a restart simply fails, as it should.
+_RFCOMM_FIRST_BYTE_S = 1.5
+_RFCOMM_RESTART_ATTEMPTS = 2
+_RFCOMM_RESTART_PAUSE_S = 0.3
+
 _log = logging.getLogger(__name__)
 
 
@@ -443,12 +451,44 @@ class BleBackend:
         deadline = time.monotonic() + max(timeout_ms / 1000, samples / rate_hz + 5.0)
         buffer = bytearray()
         connection = self._open_rfcomm(serial, port)
+        start = start_command(rate_hz, n_channels)
         try:
-            connection.write(start_command(rate_hz, n_channels))
+            connection.write(start)
+            restarts = 0
+            silent_until = time.monotonic() + _RFCOMM_FIRST_BYTE_S
             while len(buffer) < need and time.monotonic() < deadline:
                 chunk = connection.read(need - len(buffer))
                 if chunk:
                     buffer.extend(chunk)
+                elif not buffer and time.monotonic() >= silent_until:
+                    # The first acquisition after the link has been idle can end
+                    # up with the board never streaming: the port opens and the
+                    # start command is written, but nothing comes back. Restart
+                    # it from a known state rather than returning an empty
+                    # capture. Only the start is repeated, and only while no
+                    # frame has arrived, so a running stream is never disturbed.
+                    # Unlike a setpoint, start/stop carries no physical effect
+                    # that could be applied twice: it gates a measurement stream.
+                    #
+                    # NOT PROVEN ON HARDWARE. It recovered the failing case once,
+                    # then the same case failed again and the unit went offline
+                    # entirely, so that second failure could not be attributed.
+                    # The root cause is still unknown; this only bounds the
+                    # symptom, and an empty capture still raises rather than
+                    # being reported as a successful acquisition.
+                    if restarts >= _RFCOMM_RESTART_ATTEMPTS:
+                        break
+                    restarts += 1
+                    _log.debug(
+                        "no frames from %s yet; restarting acquisition (try %d)",
+                        port,
+                        restarts,
+                    )
+                    connection.write(bytes((STOP_COMMAND,)))
+                    time.sleep(_RFCOMM_RESTART_PAUSE_S)
+                    connection.reset_input_buffer()
+                    connection.write(start)
+                    silent_until = time.monotonic() + _RFCOMM_FIRST_BYTE_S
         finally:
             try:
                 connection.write(bytes((STOP_COMMAND,)))
